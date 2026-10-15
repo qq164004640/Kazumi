@@ -1,6 +1,7 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:canvas_danmaku/canvas_danmaku.dart' as canvas;
+import 'package:kazumi/modules/danmaku/custom_danmaku_server_config.dart';
 import 'package:kazumi/modules/danmaku/danmaku_module.dart';
 import 'package:kazumi/pages/download/download_controller.dart';
 import 'package:kazumi/request/apis/danmaku_api.dart';
@@ -139,18 +140,21 @@ abstract class _PlayerDanmakuController with Store {
   Future<DanmakuLoadResult> fetchDanmaku(
     int bangumiId,
     String pluginName,
-    int episode,
-  ) async {
+    int episode, {
+    String? bangumiName,
+  }) async {
     if (isLocalPlayback()) {
       return await _fetchCachedDanmaku(
         bangumiId,
         pluginName,
         episode,
+        bangumiName,
       );
     }
     return await _fetchDanDanmakuByBgmBangumiID(
       bangumiId,
       episode,
+      bangumiName,
     );
   }
 
@@ -189,7 +193,7 @@ abstract class _PlayerDanmakuController with Store {
   }
 
   Future<DanmakuLoadResult> _fetchCachedDanmaku(
-      int bangumiId, String pluginName, int episode) async {
+      bangumiId, String pluginName, int episode, String? bangumiName) async {
     KazumiLogger().i(
         'PlayerController: attempting to load cached danmaku for episode $episode');
     var nextBangumiID = bangumiID;
@@ -210,6 +214,11 @@ abstract class _PlayerDanmakuController with Store {
       } else {
         KazumiLogger()
             .i('PlayerController: no cached danmaku, attempting online fetch');
+        // 自定义弹幕服务器无 bgmtv ID 映射, 本地播放的兜底取弹幕改按标题匹配
+        if (CustomDanmakuServerConfig.isEnabled) {
+          return await _fetchCustomDanmakuByBangumiName(
+              bangumiName, episode, nextBangumiID);
+        }
         try {
           nextBangumiID =
               await DanmakuApi.getDanDanBangumiIDByBgmBangumiID(bangumiId);
@@ -268,7 +277,13 @@ abstract class _PlayerDanmakuController with Store {
   }
 
   Future<DanmakuLoadResult> _fetchDanDanmakuByBgmBangumiID(
-      int bgmBangumiID, int episode) async {
+      int bgmBangumiID, int episode, String? bangumiName) async {
+    // 自定义弹幕服务器 (danmu_api) 不支持 bgmtv ID 映射,
+    // 改按番剧标题走 match 接口自动匹配弹幕
+    if (CustomDanmakuServerConfig.isEnabled) {
+      return await _fetchCustomDanmakuByBangumiName(
+          bangumiName, episode, bangumiID);
+    }
     KazumiLogger().i(
         'PlayerController: attempting to get danmaku [BgmBangumiID] $bgmBangumiID');
     var nextBangumiID = bangumiID;
@@ -292,6 +307,37 @@ abstract class _PlayerDanmakuController with Store {
           error: e);
     }
     return DanmakuLoadResult.failed(bangumiID: nextBangumiID);
+  }
+
+  /// 自定义弹幕服务器: 按番剧标题自动匹配并拉取弹幕。
+  /// 标题缺失或未匹配到时返回空结果, 用户仍可在播放页手动搜索选择弹幕源。
+  Future<DanmakuLoadResult> _fetchCustomDanmakuByBangumiName(
+    String? bangumiName,
+    int episode,
+    int fallbackBangumiID,
+  ) async {
+    final title = bangumiName?.trim() ?? '';
+    if (title.isEmpty) {
+      KazumiLogger().i(
+          'PlayerController: custom danmaku server enabled but bangumi name unavailable');
+      return DanmakuLoadResult.success(
+        danmakus: const [],
+        bangumiID: fallbackBangumiID,
+      );
+    }
+    try {
+      final res = await DanmakuApi.getCustomDanmakuByBangumiName(
+          title, episode);
+      return DanmakuLoadResult.success(
+        danmakus: res,
+        bangumiID: fallbackBangumiID,
+      );
+    } catch (e) {
+      KazumiLogger()
+          .w('PlayerController: failed to get danmaku from custom server',
+              error: e);
+      return DanmakuLoadResult.failed(bangumiID: fallbackBangumiID);
+    }
   }
 
   @action
