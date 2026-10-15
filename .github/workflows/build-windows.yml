@@ -1,0 +1,68 @@
+name: build-windows-exe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/custom-danmaku-server
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Git longpaths
+        run: git config --system core.longpaths true
+
+      # 自动读取 pubspec.yaml 中锁定的 Flutter 3.47.7
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.16.0
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "18"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # 上游质量门禁；单独编译场景不阻断产物产出
+      - name: Analyze
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --fatal-warnings
+
+      - name: Test
+        continue-on-error: true
+        run: flutter test
+
+      - name: Build Windows Release
+        run: flutter build windows --release
+
+      - name: Package as ZIP
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath Kazumi_windows.zip -Force
+
+      - name: Upload Release directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: kazumi-windows-release
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: kazumi-windows-zip
+          path: Kazumi_windows.zip
+          if-no-files-found: error
