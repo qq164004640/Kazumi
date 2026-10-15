@@ -22,6 +22,10 @@ jobs:
       - name: Enable Git longpaths
         run: git config --system core.longpaths true
 
+      # flutter-action 读取 pubspec.yaml 锁定版本时需要 yq（与上游 release.yaml 一致）
+      - name: Install yq
+        run: choco install yq
+
       # 自动读取 pubspec.yaml 中锁定的 Flutter 3.47.7
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.16.0
