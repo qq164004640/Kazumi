@@ -193,7 +193,7 @@ abstract class _PlayerDanmakuController with Store {
   }
 
   Future<DanmakuLoadResult> _fetchCachedDanmaku(
-      bangumiId, String pluginName, int episode, String? bangumiName) async {
+      int bangumiId, String pluginName, int episode, String? bangumiName) async {
     KazumiLogger().i(
         'PlayerController: attempting to load cached danmaku for episode $episode');
     var nextBangumiID = bangumiID;

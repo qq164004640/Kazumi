@@ -147,7 +147,7 @@ class DanmakuApi {
       if (episodes.episodes.length < episode) {
         return const [];
       }
-      return CustomDanmakuClient.instance
+      return await CustomDanmakuClient.instance
           .getComments(episodes.episodes[episode - 1].episodeId);
     } catch (e) {
       KazumiLogger().w('Danmaku: custom server fallback match failed',
