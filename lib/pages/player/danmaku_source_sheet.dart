@@ -213,6 +213,11 @@ class _DanmakuSourceSheetState extends State<_DanmakuSourceSheet> {
       final hasDanmakus = await widget.danmakuController
           .getDanDanmakuByEpisodeID(episode.episodeId);
       if (!mounted) return;
+      final animeTitle = _animeTitle ?? widget.initialKeyword;
+      widget.danmakuController.setDanmakuSource(
+        animeTitle: animeTitle,
+        episodeTitle: episode.episodeTitle,
+      );
       widget.danmakuController.setDanmakuEnabled(hasDanmakus);
       KazumiDialog.dismiss(context: context);
       KazumiDialog.showToast(

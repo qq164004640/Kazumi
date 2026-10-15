@@ -101,6 +101,18 @@ abstract class _PlayerDanmakuController with Store {
   @observable
   bool danmakuLoading = false;
 
+  /// 当前弹幕来源描述, 用于播放信息面板展示 (动漫名 + 集数 + 服务器)
+  @observable
+  String danmakuSourceLabel = '';
+
+  /// 当前弹幕来源的动漫名称 (手动选择或标题匹配时已知)
+  @observable
+  String danmakuSourceAnimeTitle = '';
+
+  /// 当前弹幕来源的集数描述
+  @observable
+  String danmakuSourceEpisodeTitle = '';
+
   int bangumiID = 0;
   int _scheduledDanmakuGeneration = 0;
 
@@ -131,6 +143,37 @@ abstract class _PlayerDanmakuController with Store {
     danmakuOn = value;
   }
 
+  String get _danmakuServerName =>
+      CustomDanmakuServerConfig.isEnabled ? '自定义弹幕服务器' : '弹弹play';
+
+  /// 记录当前弹幕来源 (播放信息面板展示)。
+  @action
+  void setDanmakuSource({
+    required String animeTitle,
+    required String episodeTitle,
+    String? serverName,
+  }) {
+    danmakuSourceAnimeTitle = animeTitle;
+    danmakuSourceEpisodeTitle = episodeTitle;
+    final server = serverName ?? _danmakuServerName;
+    final animePart = animeTitle.isEmpty ? '' : '《$animeTitle》';
+    final episodePart = episodeTitle.isEmpty ? '' : ' $episodeTitle';
+    danmakuSourceLabel = '$animePart$episodePart · $server';
+  }
+
+  /// 直接设置来源标签 (本地缓存/获取失败等场景)。
+  @action
+  void updateDanmakuSourceLabel(String label) {
+    danmakuSourceLabel = label;
+  }
+
+  @action
+  void clearDanmakuSource() {
+    danmakuSourceLabel = '';
+    danmakuSourceAnimeTitle = '';
+    danmakuSourceEpisodeTitle = '';
+  }
+
   void clearAndInvalidateScheduledDanmakus() {
     _scheduledDanmakuGeneration++;
     canvasController.clear();
@@ -143,19 +186,42 @@ abstract class _PlayerDanmakuController with Store {
     int episode, {
     String? bangumiName,
   }) async {
+    final title = bangumiName?.trim() ?? '';
+    final DanmakuLoadResult result;
     if (isLocalPlayback()) {
-      return await _fetchCachedDanmaku(
+      result = await _fetchCachedDanmaku(
         bangumiId,
         pluginName,
         episode,
         bangumiName,
       );
+    } else {
+      result = await _fetchDanDanmakuByBgmBangumiID(
+        bangumiId,
+        episode,
+        bangumiName,
+      );
     }
-    return await _fetchDanDanmakuByBgmBangumiID(
-      bangumiId,
-      episode,
-      bangumiName,
-    );
+    _applyDanmakuSourceLabel(result, title: title, episode: episode);
+    return result;
+  }
+
+  /// 根据加载结果更新弹幕来源标签 (播放信息面板展示)。
+  void _applyDanmakuSourceLabel(
+    DanmakuLoadResult result, {
+    required String title,
+    required int episode,
+  }) {
+    if (result.isFailed) {
+      updateDanmakuSourceLabel('弹幕获取失败');
+      return;
+    }
+    if (result.danmakus.isEmpty) {
+      final server = CustomDanmakuServerConfig.isEnabled ? '自定义弹幕服务器' : '弹弹play';
+      updateDanmakuSourceLabel('未匹配到《$title》第${episode}集弹幕 · $server');
+      return;
+    }
+    setDanmakuSource(animeTitle: title, episodeTitle: '第${episode}集');
   }
 
   @action

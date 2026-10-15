@@ -124,10 +124,82 @@ class DanmakuApi {
     return _getCustomDanmakuByEpisodeOrder(title, episode);
   }
 
-  /// 匹配用的文件名。danmu_api 的 parseFileName 兼容 "S01E05" / "第5集"
-  /// 等网盘命名格式, "E05" 对 bgm.tv 条目内的绝对集数最稳妥。
+  /// 匹配用的文件名。
+  ///
+  /// danmu_api 的 extractTitleSeasonEpisode 只识别 `SxxExx` 格式
+  /// (正则 /^(.+?)[.\s]+S(\d+)E(\d+)/i), 仅传 "标题 E集数" 会解析不出季集
+  /// (season/episode 均为 null), 匹配器随即退化为第一集, 造成所有集数
+  /// 串到第一集弹幕。这里从标题提取季数并拼成标准的 SxxExx。
   static String _buildMatchFileName(String title, int episode) {
-    return '$title E${episode.toString().padLeft(2, '0')}';
+    final cleanTitle = title.trim();
+    final season = _extractSeasonFromTitle(cleanTitle) ?? 1;
+    final baseTitle = _stripSeasonMarker(cleanTitle);
+    final episodePart = episode.toString().padLeft(2, '0');
+    final seasonPart = season.toString().padLeft(2, '0');
+    final fileName = '$baseTitle S${seasonPart}E$episodePart';
+    KazumiLogger().i('Danmaku: custom server match fileName "$fileName"');
+    return fileName;
+  }
+
+  /// 从番剧标题提取季数 (第X季/期/部, S2, Season 2, Part 2)。
+  /// 不识别结尾裸数字 (如 "高达00"), 避免误判。
+  static int? _extractSeasonFromTitle(String title) {
+    final chineseMatch =
+        RegExp(r'第\s*([0-9一二三四五六七八九十]+)\s*[季期部]').firstMatch(title);
+    if (chineseMatch != null) {
+      return _parseChineseOrArabic(chineseMatch.group(1)!);
+    }
+    final sMatch =
+        RegExp(r'\bS(?:eason)?\s*(\d+)', caseSensitive: false).firstMatch(title);
+    if (sMatch != null) {
+      return int.tryParse(sMatch.group(1)!);
+    }
+    final partMatch =
+        RegExp(r'\bPart\s*(\d+)', caseSensitive: false).firstMatch(title);
+    if (partMatch != null) {
+      return int.tryParse(partMatch.group(1)!);
+    }
+    return null;
+  }
+
+  /// 去掉标题中的季数标识, 避免搜索关键词重复携带季信息。
+  static String _stripSeasonMarker(String title) {
+    var result = title.trim();
+    final patterns = <RegExp>[
+      RegExp(r'第\s*[0-9一二三四五六七八九十]+\s*[季期部]'),
+      RegExp(r'\bS(?:eason)?\s*\d+', caseSensitive: false),
+      RegExp(r'\bPart\s*\d+', caseSensitive: false),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(result);
+      if (match != null) {
+        result = result.replaceFirst(match.group(0)!, ' ');
+        break;
+      }
+    }
+    return result.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  static int? _parseChineseOrArabic(String value) {
+    final arabic = int.tryParse(value);
+    if (arabic != null) {
+      return arabic;
+    }
+    const digits = {
+      '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+      '六': 6, '七': 7, '八': 8, '九': 9,
+    };
+    if (digits.containsKey(value)) {
+      return digits[value];
+    }
+    final tenMatch = RegExp(r'^十([一二三四五六七八九])$').firstMatch(value);
+    if (tenMatch != null) {
+      return 10 + (digits[tenMatch.group(1)] ?? 0);
+    }
+    if (value == '十') {
+      return 10;
+    }
+    return null;
   }
 
   /// 退化路径: 搜索番剧 -> 取首个结果的完整分集列表 -> 按集序取第 episode 集。
