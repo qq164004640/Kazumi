@@ -32,12 +32,16 @@ class DanmakuLoadResult {
     required this.bangumiID,
     required this.status,
     this.danmakuServer,
+    this.danmakuAnimeTitle,
+    this.danmakuEpisodeTitle,
   });
 
   factory DanmakuLoadResult.success({
     required List<DanmakuEntry> danmakus,
     required int bangumiID,
     String? danmakuServer,
+    String? danmakuAnimeTitle,
+    String? danmakuEpisodeTitle,
   }) {
     return DanmakuLoadResult(
       danmakus: danmakus,
@@ -46,6 +50,8 @@ class DanmakuLoadResult {
           ? DanmakuLoadStatus.empty
           : DanmakuLoadStatus.success,
       danmakuServer: danmakuServer,
+      danmakuAnimeTitle: danmakuAnimeTitle,
+      danmakuEpisodeTitle: danmakuEpisodeTitle,
     );
   }
 
@@ -67,6 +73,11 @@ class DanmakuLoadResult {
 
   /// 实际提供弹幕的服务端名称; 自定义未命中回退弹弹play 等场景用于来源展示。
   final String? danmakuServer;
+
+  /// 自定义弹幕服务器实际匹配到的番剧/分集标题 (含平台来源标记),
+  /// 用于来源标签完整展示; 内置弹弹play 路径为 null, 回退到本地标题。
+  final String? danmakuAnimeTitle;
+  final String? danmakuEpisodeTitle;
 
   bool get hasDanmakus => status == DanmakuLoadStatus.success;
 
@@ -221,6 +232,8 @@ abstract class _PlayerDanmakuController with Store {
   }
 
   /// 根据加载结果更新弹幕来源标签 (播放信息面板展示)。
+  /// 自定义服务器会带回其实际匹配的番剧/分集标题 (含平台来源标记),
+  /// 优先用于展示, 与手动选择弹幕源时的显示保持一致。
   void _applyDanmakuSourceLabel(
     DanmakuLoadResult result, {
     required String title,
@@ -236,8 +249,8 @@ abstract class _PlayerDanmakuController with Store {
       return;
     }
     setDanmakuSource(
-      animeTitle: title,
-      episodeTitle: '第${episode}集',
+      animeTitle: result.danmakuAnimeTitle ?? title,
+      episodeTitle: result.danmakuEpisodeTitle ?? '第${episode}集',
       serverName: server,
     );
   }
@@ -423,6 +436,7 @@ abstract class _PlayerDanmakuController with Store {
 
   /// 自定义弹幕服务器: 按番剧标题自动匹配并拉取弹幕。
   /// 标题缺失或未匹配到时返回空结果, 用户仍可在播放页手动搜索选择弹幕源。
+  /// 匹配成功时带回服务端的番剧/分集标题, 供来源标签完整展示。
   Future<DanmakuLoadResult> _fetchCustomDanmakuByBangumiName(
     String? bangumiName,
     int episode,
@@ -442,9 +456,11 @@ abstract class _PlayerDanmakuController with Store {
       final res = await DanmakuApi.getCustomDanmakuByBangumiName(
           title, episode);
       return DanmakuLoadResult.success(
-        danmakus: res,
+        danmakus: res.danmakus,
         bangumiID: fallbackBangumiID,
         danmakuServer: customDanmakuServerName,
+        danmakuAnimeTitle: res.animeTitle,
+        danmakuEpisodeTitle: res.episodeTitle,
       );
     } catch (e) {
       KazumiLogger()

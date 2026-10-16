@@ -106,22 +106,37 @@ class DanmakuApi {
   /// danmu_api 不兼容弹弹play 的 bgmtv ID 映射与 animeId*10000+集数 的
   /// commentId 约定, 因此先经 match 接口按 "标题 E集数" 解析真实 episodeId,
   /// 失败时退化为 搜索->取首个番剧->按集序取分集。
-  static Future<List<DanmakuEntry>> getCustomDanmakuByBangumiName(
+  ///
+  /// 同时带回服务端实际匹配到的番剧/分集标题 (含平台来源标记, 如
+  /// "【动漫】 from bahamut"/"【bahamut】第2集"), 供弹幕来源标签完整
+  /// 展示; 拿不到时为 null, 由调用方回退到本地番剧标题。
+  static Future<
+      ({
+        List<DanmakuEntry> danmakus,
+        String? animeTitle,
+        String? episodeTitle
+      })> getCustomDanmakuByBangumiName(
     String bangumiName,
     int episode,
   ) async {
     if (!_useCustomServer) {
-      return const [];
+      return (danmakus: const [], animeTitle: null, episodeTitle: null);
     }
     final title = bangumiName.trim();
     if (title.isEmpty || episode < 1) {
-      return const [];
+      return (danmakus: const [], animeTitle: null, episodeTitle: null);
     }
     if (CustomDanmakuServerConfig.autoMatch) {
-      final episodeId = await CustomDanmakuClient.instance
+      final match = await CustomDanmakuClient.instance
           .matchEpisodeId(fileName: _buildMatchFileName(title, episode));
-      if (episodeId != null) {
-        return CustomDanmakuClient.instance.getComments(episodeId);
+      if (match.episodeId != null) {
+        final danmakus =
+            await CustomDanmakuClient.instance.getComments(match.episodeId!);
+        return (
+          danmakus: danmakus,
+          animeTitle: match.animeTitle,
+          episodeTitle: match.episodeTitle,
+        );
       }
     }
     return _getCustomDanmakuByEpisodeOrder(title, episode);
@@ -206,7 +221,13 @@ class DanmakuApi {
   }
 
   /// 退化路径: 搜索番剧 -> 取首个结果的完整分集列表 -> 按集序取第 episode 集。
-  static Future<List<DanmakuEntry>> _getCustomDanmakuByEpisodeOrder(
+  /// 标题同样取服务端返回值 (含平台来源标记) 供来源标签展示。
+  static Future<
+      ({
+        List<DanmakuEntry> danmakus,
+        String? animeTitle,
+        String? episodeTitle
+      })> _getCustomDanmakuByEpisodeOrder(
     String title,
     int episode,
   ) async {
@@ -214,20 +235,27 @@ class DanmakuApi {
       final searchResponse =
           await CustomDanmakuClient.instance.searchAnimes(title);
       if (searchResponse.animes.isEmpty) {
-        return const [];
+        return (danmakus: const [], animeTitle: null, episodeTitle: null);
       }
-      final bangumiID = searchResponse.animes.first.animeId;
+      final firstAnime = searchResponse.animes.first;
+      final bangumiID = firstAnime.animeId;
       final episodes =
           await CustomDanmakuClient.instance.getEpisodes(bangumiID);
       if (episodes.episodes.length < episode) {
-        return const [];
+        return (danmakus: const [], animeTitle: null, episodeTitle: null);
       }
-      return await CustomDanmakuClient.instance
-          .getComments(episodes.episodes[episode - 1].episodeId);
+      final target = episodes.episodes[episode - 1];
+      final danmakus =
+          await CustomDanmakuClient.instance.getComments(target.episodeId);
+      return (
+        danmakus: danmakus,
+        animeTitle: firstAnime.animeTitle,
+        episodeTitle: target.episodeTitle,
+      );
     } catch (e) {
       KazumiLogger().w('Danmaku: custom server fallback match failed',
           error: e);
-      return const [];
+      return (danmakus: const [], animeTitle: null, episodeTitle: null);
     }
   }
 }

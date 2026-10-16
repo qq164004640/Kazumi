@@ -767,10 +767,10 @@ abstract class _DownloadController with Store {
       final name = record?.bangumiName.trim() ?? '';
       if (name.isNotEmpty) {
         try {
-          final danmakus = await DanmakuApi.getCustomDanmakuByBangumiName(
+          final resolved = await DanmakuApi.getCustomDanmakuByBangumiName(
               name, episodeNumber);
-          if (danmakus.isNotEmpty) {
-            return (danmakus: danmakus, danDanBangumiID: 0);
+          if (resolved.danmakus.isNotEmpty) {
+            return (danmakus: resolved.danmakus, danDanBangumiID: 0);
           }
         } catch (e) {
           KazumiLogger().w(

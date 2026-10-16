@@ -78,7 +78,12 @@ class CustomDanmakuClient {
   }
 
   /// 按标题匹配并解析 episodeId（danmu_api 的自动匹配接口）。
-  Future<int?> matchEpisodeId({required String fileName}) async {
+  ///
+  /// danmu_api 的 matches 项除 episodeId 外还带有 animeTitle/episodeTitle
+  /// (含平台来源标记, 如 【bahamut】第2集), 一并带回供弹幕来源标签
+  /// 完整展示; 服务端未返回时为 null。
+  Future<({int? episodeId, String? animeTitle, String? episodeTitle})>
+      matchEpisodeId({required String fileName}) async {
     final base = CustomDanmakuServerConfig.baseUrl;
     if (base == null) {
       throw StateError('自定义弹幕服务器地址未配置或格式不正确');
@@ -89,14 +94,26 @@ class CustomDanmakuClient {
     );
     final map = _asJsonMap(jsonData);
     if (map['isMatched'] != true) {
-      return null;
+      return (episodeId: null, animeTitle: null, episodeTitle: null);
     }
     final matches = map['matches'] as List?;
     if (matches == null || matches.isEmpty) {
-      return null;
+      return (episodeId: null, animeTitle: null, episodeTitle: null);
     }
-    final episodeId = (matches.first as Map<String, dynamic>)['episodeId'];
-    return episodeId is int ? episodeId : null;
+    final match = matches.first;
+    if (match is! Map<String, dynamic>) {
+      return (episodeId: null, animeTitle: null, episodeTitle: null);
+    }
+    final episodeId = match['episodeId'];
+    return (
+      episodeId: episodeId is int ? episodeId : null,
+      animeTitle: match['animeTitle'] is String
+          ? match['animeTitle'] as String
+          : null,
+      episodeTitle: match['episodeTitle'] is String
+          ? match['episodeTitle'] as String
+          : null,
+    );
   }
 
   /// 轻量连通性测试，命中缓存列表接口即可，不触发任何源站抓取。
