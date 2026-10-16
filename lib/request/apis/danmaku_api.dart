@@ -13,15 +13,14 @@ class DanmakuApi {
   static final DanmakuClient _client = DanmakuClient.instance;
 
   /// 用户配置了可用的自定义弹幕服务器 (danmu_api / LogVar 兼容) 时为 true。
-  /// 所有弹幕请求在此统一分发, 关闭时行为与改动前完全一致。
+  /// 弹幕请求默认在此分发, 调用方可通过 useCustomServer 参数显式指定服务端
+  /// (自定义未命中回退弹弹play、手动选择分集时按结果来源路由)。
   static bool get _useCustomServer => CustomDanmakuServerConfig.isEnabled;
 
+  /// bgmtv ID -> 弹弹play 番剧 ID 映射。
+  /// 该映射只涉及弹弹play, 与自定义服务器开关无关, 始终真实请求;
+  /// 是否使用由调用方决定 (自定义未命中时的回退路径依赖它)。
   static Future<int> getDanDanBangumiIDByBgmBangumiID(int bgmBangumiID) async {
-    // 自定义弹幕服务器 (danmu_api) 不提供 bgmtv ID 映射,
-    // 播放取弹幕改走 getCustomDanmakuByBangumiName 的标题匹配路径。
-    if (_useCustomServer) {
-      return 0;
-    }
     final path = ApiEndpoints.formatUrl(
       ApiEndpoints.dandanAPIInfoByBgmBangumiId,
       [bgmBangumiID],
@@ -32,9 +31,10 @@ class DanmakuApi {
   }
 
   static Future<DanmakuEpisodeResponse> getDanDanEpisodesByDanDanBangumiID(
-    int bangumiID,
-  ) async {
-    if (_useCustomServer) {
+    int bangumiID, {
+    bool? useCustomServer,
+  }) async {
+    if (useCustomServer ?? _useCustomServer) {
       return CustomDanmakuClient.instance.getEpisodes(bangumiID);
     }
     final path = ApiEndpoints.dandanAPIInfo + bangumiID.toString();
@@ -45,8 +45,11 @@ class DanmakuApi {
 
   // v2 episode search avoids the anime search's 25-result cap.
   // Fetch full episode lists separately; search results can truncate them.
-  static Future<DanmakuSearchResponse> searchAnimes(String title) async {
-    if (_useCustomServer) {
+  static Future<DanmakuSearchResponse> searchAnimes(
+    String title, {
+    bool? useCustomServer,
+  }) async {
+    if (useCustomServer ?? _useCustomServer) {
       return CustomDanmakuClient.instance.searchAnimes(title);
     }
     final endPoint =
@@ -70,9 +73,9 @@ class DanmakuApi {
   }
 
   static Future<List<DanmakuEntry>> getDanDanmakuByEpisodeID(
-      int episodeID) async {
+      int episodeID, {bool? useCustomServer}) async {
     // 手动选择分集时 episodeID 来自服务端返回的分集列表, 是真实 ID。
-    if (_useCustomServer) {
+    if (useCustomServer ?? _useCustomServer) {
       return CustomDanmakuClient.instance.getComments(episodeID);
     }
     return _getComments(episodeID.toString());

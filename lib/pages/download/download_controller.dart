@@ -752,7 +752,8 @@ abstract class _DownloadController with Store {
     });
   }
 
-  /// 下载预取弹幕: 自定义弹幕服务器按标题匹配, 否则走弹弹play bgmtv ID 映射。
+  /// 下载预取弹幕: 自定义弹幕服务器优先 (按标题匹配), 无弹幕 (或请求失败)
+  /// 时回退弹弹play bgmtv ID 映射。
   /// danmakus 为 null 表示无法获取 (与「获取到空列表」区分, 两者都跳过缓存);
   /// danDanBangumiID 仅写入缓存文件留档, 自定义服务器无对应 ID 时记 0。
   Future<({List<DanmakuEntry>? danmakus, int danDanBangumiID})>
@@ -764,14 +765,20 @@ abstract class _DownloadController with Store {
     if (CustomDanmakuServerConfig.isEnabled) {
       final record = _repository.getRecord(recordKey);
       final name = record?.bangumiName.trim() ?? '';
-      if (name.isEmpty) {
-        KazumiLogger().w(
-            'DownloadController: custom danmaku server enabled but bangumi name unavailable');
-        return (danmakus: null, danDanBangumiID: 0);
+      if (name.isNotEmpty) {
+        try {
+          final danmakus = await DanmakuApi.getCustomDanmakuByBangumiName(
+              name, episodeNumber);
+          if (danmakus.isNotEmpty) {
+            return (danmakus: danmakus, danDanBangumiID: 0);
+          }
+        } catch (e) {
+          KazumiLogger().w(
+              'DownloadController: custom danmaku fetch failed', error: e);
+        }
       }
-      final danmakus =
-          await DanmakuApi.getCustomDanmakuByBangumiName(name, episodeNumber);
-      return (danmakus: danmakus, danDanBangumiID: 0);
+      KazumiLogger().i(
+          'DownloadController: custom danmaku unavailable, falling back to弹弹play');
     }
     // 获取 DanDan 番剧 ID
     final danDanBangumiID =
