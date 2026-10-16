@@ -120,11 +120,11 @@ class DanmakuApi {
     int episode,
   ) async {
     if (!_useCustomServer) {
-      return (danmakus: const [], animeTitle: null, episodeTitle: null);
+      return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
     }
     final title = bangumiName.trim();
     if (title.isEmpty || episode < 1) {
-      return (danmakus: const [], animeTitle: null, episodeTitle: null);
+      return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
     }
     if (CustomDanmakuServerConfig.autoMatch) {
       final match = await CustomDanmakuClient.instance
@@ -235,14 +235,14 @@ class DanmakuApi {
       final searchResponse =
           await CustomDanmakuClient.instance.searchAnimes(title);
       if (searchResponse.animes.isEmpty) {
-        return (danmakus: const [], animeTitle: null, episodeTitle: null);
+        return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
       }
       final firstAnime = searchResponse.animes.first;
       final bangumiID = firstAnime.animeId;
       final episodes =
           await CustomDanmakuClient.instance.getEpisodes(bangumiID);
       if (episodes.episodes.length < episode) {
-        return (danmakus: const [], animeTitle: null, episodeTitle: null);
+        return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
       }
       final target = episodes.episodes[episode - 1];
       final danmakus =
@@ -255,7 +255,7 @@ class DanmakuApi {
     } catch (e) {
       KazumiLogger().w('Danmaku: custom server fallback match failed',
           error: e);
-      return (danmakus: const [], animeTitle: null, episodeTitle: null);
+      return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
     }
   }
 }
