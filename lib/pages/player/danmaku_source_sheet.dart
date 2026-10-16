@@ -119,6 +119,25 @@ class _DanmakuSourceSheetState extends State<_DanmakuSourceSheet> {
   /// 分集列表与弹幕请求按此路由, 来源标签也按此展示。
   bool _resultsFromCustomServer = false;
 
+  /// 选中的番剧平台来源 (danmu_api 等聚合服务器标题的 【dandan&bahamu】 前缀),
+  /// 并入来源标签展示; 自动匹配路径拿不到平台信息, 只显示服务器名。
+  String? _animePlatform;
+
+  /// 拆分聚合型弹幕服务器番剧标题的平台前缀。
+  /// "【dandan&bahamu】进击的巨人" -> (title: "进击的巨人", platform: "dandan&bahamu");
+  /// 无前缀时 platform 为 null。列表展示保留原标题以便区分多来源条目。
+  static ({String title, String? platform}) _splitAnimeTitle(String rawTitle) {
+    final trimmed = rawTitle.trim();
+    final match = RegExp(r'^【([^】]*)】\s*').firstMatch(trimmed);
+    if (match == null) {
+      return (title: trimmed, platform: null);
+    }
+    return (
+      title: trimmed.substring(match.end).trim(),
+      platform: match.group(1),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -208,7 +227,9 @@ class _DanmakuSourceSheetState extends State<_DanmakuSourceSheet> {
     setState(() {
       _loading = true;
       _error = null;
-      _animeTitle = anime.animeTitle;
+      final split = _splitAnimeTitle(anime.animeTitle);
+      _animeTitle = split.title;
+      _animePlatform = split.platform;
       _step = _SourceStep.episode;
       _episodes = const [];
       _episodeSearchController.clear();
@@ -245,12 +266,15 @@ class _DanmakuSourceSheetState extends State<_DanmakuSourceSheet> {
               useCustomServer: _resultsFromCustomServer);
       if (!mounted) return;
       final animeTitle = _animeTitle ?? widget.initialKeyword;
+      final serverName = _resultsFromCustomServer
+          ? (_animePlatform != null
+              ? '$customDanmakuServerName($_animePlatform)'
+              : customDanmakuServerName)
+          : builtInDanmakuServerName;
       widget.danmakuController.setDanmakuSource(
         animeTitle: animeTitle,
         episodeTitle: episode.episodeTitle,
-        serverName: _resultsFromCustomServer
-            ? customDanmakuServerName
-            : builtInDanmakuServerName,
+        serverName: serverName,
       );
       widget.danmakuController.setDanmakuEnabled(hasDanmakus);
       KazumiDialog.dismiss(context: context);
