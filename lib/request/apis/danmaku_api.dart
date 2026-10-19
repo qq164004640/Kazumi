@@ -127,8 +127,19 @@ class DanmakuApi {
       return (danmakus: <DanmakuEntry>[], animeTitle: null, episodeTitle: null);
     }
     if (CustomDanmakuServerConfig.autoMatch) {
-      final match = await CustomDanmakuClient.instance
-          .matchEpisodeId(fileName: _buildMatchFileName(title, episode));
+      ({int? episodeId, String? animeTitle, String? episodeTitle}) match;
+      try {
+        match = await CustomDanmakuClient.instance
+            .matchEpisodeId(fileName: _buildMatchFileName(title, episode));
+      } catch (e) {
+        // match 接口异常时按注释承诺退化为按集序取弹幕;
+        // getComments 的异常不在此捕获, 交由上层回退弹弹play。
+        KazumiLogger().w(
+            'Danmaku: custom server auto-match failed, '
+            'falling back to episode order',
+            error: e);
+        match = (episodeId: null, animeTitle: null, episodeTitle: null);
+      }
       if (match.episodeId != null) {
         final danmakus =
             await CustomDanmakuClient.instance.getComments(match.episodeId!);

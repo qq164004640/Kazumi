@@ -137,6 +137,12 @@ abstract class _PlayerDanmakuController with Store {
   @observable
   String danmakuSourceEpisodeTitle = '';
 
+  /// 当前弹幕的实际来源服务 (自定义弹幕服务器 / 弹弹play)。
+  /// 播放页的来源过滤按此判定而非全局开关: 自定义未命中回退弹弹play 时,
+  /// 弹幕实际来自弹弹play, 仍按用户设置的来源过滤规则显示。
+  /// 非 observable: 仅在同一帧的过滤判定中同步读取, 无需触发重建。
+  String? currentDanmakuServer;
+
   int bangumiID = 0;
   int _scheduledDanmakuGeneration = 0;
 
@@ -178,9 +184,10 @@ abstract class _PlayerDanmakuController with Store {
     required String episodeTitle,
     String? serverName,
   }) {
+    final server = serverName ?? _danmakuServerName;
+    currentDanmakuServer = server;
     danmakuSourceAnimeTitle = animeTitle;
     danmakuSourceEpisodeTitle = episodeTitle;
-    final server = serverName ?? _danmakuServerName;
     final animePart = animeTitle.isEmpty ? '' : '《$animeTitle》';
     final episodePart = episodeTitle.isEmpty ? '' : ' $episodeTitle';
     danmakuSourceLabel = '$animePart$episodePart · $server';
@@ -197,6 +204,7 @@ abstract class _PlayerDanmakuController with Store {
     danmakuSourceLabel = '';
     danmakuSourceAnimeTitle = '';
     danmakuSourceEpisodeTitle = '';
+    currentDanmakuServer = null;
   }
 
   void clearAndInvalidateScheduledDanmakus() {
@@ -204,14 +212,15 @@ abstract class _PlayerDanmakuController with Store {
     canvasController.clear();
   }
 
-  // Apply fetched data only after VideoPageController validates the session.
+  // Fetch danmaku data only; the source label is applied afterwards by
+  // VideoPageController once it has validated the playback session, so a
+  // stale fetch cannot overwrite the label of the current session.
   Future<DanmakuLoadResult> fetchDanmaku(
     int bangumiId,
     String pluginName,
     int episode, {
     String? bangumiName,
   }) async {
-    final title = bangumiName?.trim() ?? '';
     final DanmakuLoadResult result;
     if (isLocalPlayback()) {
       result = await _fetchCachedDanmaku(
@@ -227,14 +236,14 @@ abstract class _PlayerDanmakuController with Store {
         bangumiName,
       );
     }
-    _applyDanmakuSourceLabel(result, title: title, episode: episode);
     return result;
   }
 
   /// 根据加载结果更新弹幕来源标签 (播放信息面板展示)。
   /// 自定义服务器会带回其实际匹配的番剧/分集标题 (含平台来源标记),
   /// 优先用于展示, 与手动选择弹幕源时的显示保持一致。
-  void _applyDanmakuSourceLabel(
+  /// 仅在会话校验通过后调用 (见 VideoPageController._loadPlaybackDanmaku)。
+  void applyDanmakuSourceLabel(
     DanmakuLoadResult result, {
     required String title,
     required int episode,
@@ -244,6 +253,7 @@ abstract class _PlayerDanmakuController with Store {
       return;
     }
     final server = result.danmakuServer ?? _danmakuServerName;
+    currentDanmakuServer = server;
     if (result.danmakus.isEmpty) {
       updateDanmakuSourceLabel('未匹配到《$title》第${episode}集弹幕 · $server');
       return;

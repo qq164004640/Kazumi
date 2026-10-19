@@ -27,7 +27,6 @@ import 'package:kazumi/pages/player/video_details_sheet.dart';
 import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
 import 'package:kazumi/pages/history/history_controller.dart';
 import 'package:kazumi/services/storage/storage.dart';
-import 'package:kazumi/modules/danmaku/custom_danmaku_server_config.dart';
 import 'package:kazumi/modules/danmaku/danmaku_module.dart';
 import 'package:kazumi/pages/player/controller/player_danmaku_controller.dart';
 import 'package:kazumi/pages/player/danmaku_source_sheet.dart';
@@ -1109,7 +1108,10 @@ class _PlayerItemState extends State<PlayerItem>
     // 自定义弹幕服务器的来源标签是平台名 (如 [bilibili]/[tencent]),
     // 与弹弹play 关联源 ([BiliBili]/[Gamer]) 的过滤语义不同, 不套用这组开关,
     // 避免关闭「弹弹play」来源时误过滤掉全部自定义服务器弹幕。
-    if (CustomDanmakuServerConfig.isEnabled) {
+    // 注意按当前弹幕的实际来源服务判定, 而非自定义开关: 自定义未命中
+    // 回退弹弹play 时, 弹幕实际来自弹弹play, 仍按原规则过滤。
+    if (playerController.danmaku.currentDanmakuServer ==
+        customDanmakuServerName) {
       return true;
     }
     if (!_danmakuBiliBiliSource && danmaku.source.contains('BiliBili')) {

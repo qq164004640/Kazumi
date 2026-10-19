@@ -553,6 +553,13 @@ abstract class _VideoPageController with Store implements Disposable {
         bangumiName: params.bangumiName,
       );
       if (session.isActive && danmakuSession.isActive) {
+        // 来源标签在会话校验通过后再应用, 避免旧会话的加载结果
+        // 覆盖当前会话的标签。
+        playerController.danmaku.applyDanmakuSourceLabel(
+          result,
+          title: params.bangumiName?.trim() ?? '',
+          episode: params.danmakuEpisodeNumber,
+        );
         if (result.hasDanmakus) {
           final bool enableDanmaku =
               GStorage.getSetting(SettingsKeys.danmakuEnabledByDefault);
@@ -570,6 +577,7 @@ abstract class _VideoPageController with Store implements Disposable {
     } catch (e) {
       if (session.isActive && danmakuSession.isActive) {
         playerController.danmaku.finishDanmakuLoad(disableDanmaku: true);
+        playerController.danmaku.updateDanmakuSourceLabel('弹幕获取失败');
         KazumiDialog.showToast(message: '弹幕加载失败，可手动检索');
       }
       KazumiLogger().w('VideoPageController: failed to load danmaku', error: e);

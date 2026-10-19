@@ -206,7 +206,10 @@ class _DanmakuSettingsPageState extends State<DanmakuSettingsPage> {
   }
 
   Future<void> testCustomDanmakuServer() async {
-    if (!CustomDanmakuServerConfig.isEnabled) {
+    // 测试连接只要求地址可用, 不要求先打开「启用自定义弹幕服务器」开关,
+    // 否则用户在配置阶段反而无法验证地址是否正确。
+    final url = customDanmakuServerUrl.trim();
+    if (url.isEmpty || CustomDanmakuServerConfig.normalizeBaseUrl(url) == null) {
       KazumiDialog.showToast(message: '请先填写有效的服务器地址');
       return;
     }

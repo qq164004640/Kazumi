@@ -41,6 +41,58 @@ mixin _$PlayerDanmakuController on _PlayerDanmakuController, Store {
     });
   }
 
+  late final _$danmakuSourceLabelAtom =
+      Atom(name: '_PlayerDanmakuController.danmakuSourceLabel', context: context);
+
+  @override
+  String get danmakuSourceLabel {
+    _$danmakuSourceLabelAtom.reportRead();
+    return super.danmakuSourceLabel;
+  }
+
+  @override
+  set danmakuSourceLabel(String value) {
+    _$danmakuSourceLabelAtom.reportWrite(
+        value, super.danmakuSourceLabel, () {
+      super.danmakuSourceLabel = value;
+    });
+  }
+
+  late final _$danmakuSourceAnimeTitleAtom = Atom(
+      name: '_PlayerDanmakuController.danmakuSourceAnimeTitle', context: context);
+
+  @override
+  String get danmakuSourceAnimeTitle {
+    _$danmakuSourceAnimeTitleAtom.reportRead();
+    return super.danmakuSourceAnimeTitle;
+  }
+
+  @override
+  set danmakuSourceAnimeTitle(String value) {
+    _$danmakuSourceAnimeTitleAtom.reportWrite(
+        value, super.danmakuSourceAnimeTitle, () {
+      super.danmakuSourceAnimeTitle = value;
+    });
+  }
+
+  late final _$danmakuSourceEpisodeTitleAtom = Atom(
+      name: '_PlayerDanmakuController.danmakuSourceEpisodeTitle',
+      context: context);
+
+  @override
+  String get danmakuSourceEpisodeTitle {
+    _$danmakuSourceEpisodeTitleAtom.reportRead();
+    return super.danmakuSourceEpisodeTitle;
+  }
+
+  @override
+  set danmakuSourceEpisodeTitle(String value) {
+    _$danmakuSourceEpisodeTitleAtom.reportWrite(
+        value, super.danmakuSourceEpisodeTitle, () {
+      super.danmakuSourceEpisodeTitle = value;
+    });
+  }
+
   late final _$getDanDanmakuByEpisodeIDAsyncAction = AsyncAction(
       '_PlayerDanmakuController.getDanDanmakuByEpisodeID',
       context: context);
@@ -116,7 +168,10 @@ mixin _$PlayerDanmakuController on _PlayerDanmakuController, Store {
   String toString() {
     return '''
 danmakuOn: ${danmakuOn},
-danmakuLoading: ${danmakuLoading}
+danmakuLoading: ${danmakuLoading},
+danmakuSourceLabel: ${danmakuSourceLabel},
+danmakuSourceAnimeTitle: ${danmakuSourceAnimeTitle},
+danmakuSourceEpisodeTitle: ${danmakuSourceEpisodeTitle}
     ''';
   }
 }

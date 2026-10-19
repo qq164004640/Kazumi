@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:kazumi/modules/danmaku/danmaku_ch_convert.dart';
 import 'package:kazumi/modules/danmaku/custom_danmaku_server_config.dart';
 import 'package:kazumi/modules/danmaku/danmaku_episode_response.dart';
 import 'package:kazumi/modules/danmaku/danmaku_module.dart';
@@ -9,6 +10,7 @@ import 'package:kazumi/request/config/api_endpoints.dart';
 import 'package:kazumi/request/core/dio_factory.dart';
 import 'package:kazumi/request/core/network_error_mapper.dart';
 import 'package:kazumi/services/logging/logger.dart';
+import 'package:kazumi/services/storage/storage.dart';
 
 /// 自定义弹幕服务器（danmu_api / LogVar 兼容）的 HTTP 客户端。
 ///
@@ -59,22 +61,39 @@ class CustomDanmakuClient {
     if (base == null) {
       throw StateError('自定义弹幕服务器地址未配置或格式不正确');
     }
+    // 与弹弹play 路径保持一致: 尊重用户的简繁转换设置。
+    final conversion = DanmakuChConvert.fromValue(
+      GStorage.getSetting(SettingsKeys.danmakuChConvert),
+    );
     final jsonData = await _get(
       '$base${ApiEndpoints.customDanmuAPIComment}$episodeId',
-      queryParameters: {'format': 'json'},
+      queryParameters: {
+        'format': 'json',
+        'chConvert': conversion.value.toString(),
+      },
     );
     final comments = _asJsonMap(jsonData)['comments'] as List?;
     if (comments == null || comments.isEmpty) {
       return const [];
     }
     // 单条弹幕格式异常不应中断整个列表，跳过坏数据。
-    return [
-      for (final comment in comments)
-        if (comment is Map<String, dynamic> &&
-            comment['p'] is String &&
-            comment['m'] is String)
-          DanmakuEntry.fromJson(comment),
-    ];
+    final result = <DanmakuEntry>[];
+    for (final comment in comments) {
+      if (comment is! Map<String, dynamic>) {
+        continue;
+      }
+      if (comment['p'] is! String || comment['m'] is! String) {
+        continue;
+      }
+      try {
+        // p 字段即便为字符串, 分段数不足时 fromJson 仍会越界抛异常,
+        // 这里按条捕获, 仅丢弃该条而不是整个列表。
+        result.add(DanmakuEntry.fromJson(comment));
+      } catch (e) {
+        KazumiLogger().w('Custom danmaku: skip malformed comment', error: e);
+      }
+    }
+    return result;
   }
 
   /// 按标题匹配并解析 episodeId（danmu_api 的自动匹配接口）。
